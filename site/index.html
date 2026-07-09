@@ -56,6 +56,22 @@ main {
   overflow: hidden;
 }
 #map { width: 100%; height: 100%; position: relative; }
+#map.exporting-map-image .leaflet-control-container,
+#map.exporting-map-image #historyControls,
+#map.exporting-map-image .history-row,
+#map.exporting-map-image .basemap-toggle,
+#map.exporting-map-image .placed-basemap-actions,
+#map.exporting-map-image .placed-basemap-action,
+#map.exporting-map-image .basemap-adjust,
+#map.exporting-map-image .object-detail-popup,
+#map.exporting-map-image .object-detail-panel,
+#map.exporting-map-image .multi-select-panel,
+#map.exporting-map-image .status,
+#map.exporting-map-image .leaflet-pm-toolbar {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 .brand { padding: 18px 18px 14px; border-bottom: 1px solid var(--border); }
 .brand h1 { font-size: 19px; font-weight: 700; letter-spacing: 0; color: var(--text); line-height: 1.25; }
 .brand-reload {
@@ -6721,6 +6737,36 @@ function parseCssLength(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function getVisibleMapExportRect(mapEl) {
+  const mapRect = mapEl.getBoundingClientRect();
+  const sidebar = document.getElementById('sidebar');
+  let left = mapRect.left;
+
+  if (sidebar) {
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const overlapsMap = sidebarRect.right > mapRect.left &&
+      sidebarRect.left < mapRect.right &&
+      sidebarRect.bottom > mapRect.top &&
+      sidebarRect.top < mapRect.bottom;
+    const isSideOverlay = sidebarRect.width > 0 &&
+      sidebarRect.width < mapRect.width * 0.6 &&
+      sidebarRect.right > mapRect.left &&
+      sidebarRect.right < mapRect.right;
+    if (overlapsMap && isSideOverlay) {
+      left = Math.max(mapRect.left, sidebarRect.right);
+    }
+  }
+
+  return {
+    left,
+    top: mapRect.top,
+    right: mapRect.right,
+    bottom: mapRect.bottom,
+    width: Math.max(1, mapRect.right - left),
+    height: Math.max(1, mapRect.height),
+  };
+}
+
 function getTranslateFromTransform(transform) {
   if (!transform || transform === 'none') return { x: 0, y: 0 };
   try {
@@ -6889,6 +6935,253 @@ function removeExportRasterSnapshot(snapshot) {
   snapshot?.roots?.forEach(root => root.remove());
 }
 
+function collectLatLngSequences(latlngs) {
+  const sequences = [];
+  const isLatLng = value => value && Number.isFinite(value.lat) && Number.isFinite(value.lng);
+  const walk = value => {
+    if (!Array.isArray(value) || !value.length) return;
+    if (isLatLng(value[0])) {
+      sequences.push(value);
+    } else {
+      value.forEach(walk);
+    }
+  };
+  walk(latlngs);
+  return sequences;
+}
+
+function latLngSequenceToSvgPath(sequence, closePath) {
+  const points = sequence
+    .map(latlng => map.latLngToContainerPoint(latlng))
+    .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+  if (points.length < (closePath ? 3 : 2)) return '';
+  const body = points.map((point, index) => {
+    const cmd = index === 0 ? 'M' : 'L';
+    return `${cmd}${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+  }).join(' ');
+  return closePath ? `${body} Z` : body;
+}
+
+function normalizeSvgDashArray(value) {
+  if (value == null || value === '' || value === 'none') return '';
+  return String(value).replace(/,/g, ' ').trim();
+}
+
+function createExportSvgArrowDefs(svg) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const defs = document.createElementNS(ns, 'defs');
+  const buildArrow = (id, orient) => {
+    const marker = document.createElementNS(ns, 'marker');
+    marker.setAttribute('id', id);
+    marker.setAttribute('viewBox', '0 0 10 10');
+    marker.setAttribute('refX', '8');
+    marker.setAttribute('refY', '5');
+    marker.setAttribute('markerWidth', '6');
+    marker.setAttribute('markerHeight', '6');
+    marker.setAttribute('orient', orient);
+    marker.setAttribute('markerUnits', 'strokeWidth');
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M0,0 L10,5 L0,10 L3,5 Z');
+    path.setAttribute('fill', 'context-stroke');
+    marker.appendChild(path);
+    return marker;
+  };
+  defs.appendChild(buildArrow('export-route-arrow-end', 'auto'));
+  defs.appendChild(buildArrow('export-route-arrow-start', 'auto-start-reverse'));
+  svg.appendChild(defs);
+}
+
+function appendExportVectorPath(svg, layer, closePath) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const options = layer.options || {};
+  const props = layer.feature?.properties || {};
+  const stroke = options.color || props.colorStroke || '#3b3a35';
+  const strokeWidth = options.weight ?? props.strokeWidth ?? (closePath ? 1.5 : 3);
+  const strokeOpacity = options.opacity ?? props.opacity ?? 1;
+  const fill = closePath
+    ? (options.fill === false ? 'none' : (options.fillColor || props.colorFill || options.color || '#d8d2c4'))
+    : 'none';
+  const fillOpacity = closePath ? (options.fillOpacity ?? props.fillOpacity ?? 0.5) : 0;
+  const dashArray = normalizeSvgDashArray(options.dashArray ?? props.dashArray);
+  const lineCap = options.lineCap || (closePath ? 'round' : 'round');
+  const lineJoin = options.lineJoin || 'round';
+  const arrowMode = closePath ? 'none' : (props.arrowMode || 'none');
+  const sequences = collectLatLngSequences(layer.getLatLngs ? layer.getLatLngs() : []);
+  let appended = 0;
+
+  sequences.forEach(sequence => {
+    const d = latLngSequenceToSvgPath(sequence, closePath);
+    if (!d) return;
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', fill);
+    path.setAttribute('fill-opacity', String(fillOpacity));
+    path.setAttribute('fill-rule', 'evenodd');
+    path.setAttribute('stroke', stroke);
+    path.setAttribute('stroke-width', String(strokeWidth));
+    path.setAttribute('stroke-opacity', String(strokeOpacity));
+    path.setAttribute('stroke-linecap', lineCap);
+    path.setAttribute('stroke-linejoin', lineJoin);
+    if (dashArray) path.setAttribute('stroke-dasharray', dashArray);
+    if (arrowMode === 'end' || arrowMode === 'both') path.setAttribute('marker-end', 'url(#export-route-arrow-end)');
+    if (arrowMode === 'start' || arrowMode === 'both') path.setAttribute('marker-start', 'url(#export-route-arrow-start)');
+    svg.appendChild(path);
+    appended += 1;
+  });
+
+  return appended;
+}
+
+function getElementVisualRect(el) {
+  const rects = [el, ...el.querySelectorAll('*')]
+    .map(node => node.getBoundingClientRect())
+    .filter(rect => rect.width > 0.5 && rect.height > 0.5);
+  if (!rects.length) return el.getBoundingClientRect();
+  return rects.reduce((acc, rect) => ({
+    left: Math.min(acc.left, rect.left),
+    top: Math.min(acc.top, rect.top),
+    right: Math.max(acc.right, rect.right),
+    bottom: Math.max(acc.bottom, rect.bottom),
+    width: Math.max(acc.right, rect.right) - Math.min(acc.left, rect.left),
+    height: Math.max(acc.bottom, rect.bottom) - Math.min(acc.top, rect.top),
+  }));
+}
+
+function cloneExportMarker(marker, root, waitList, mapRect) {
+  const source = marker.getElement?.() || marker._icon;
+  if (!source) return false;
+  const style = getComputedStyle(source);
+  if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) <= 0) return false;
+
+  const visibleSource = (source.classList.contains('label-marker') || source.classList.contains('text-marker'))
+    ? (source.firstElementChild || source)
+    : source;
+  const rect = getElementVisualRect(visibleSource);
+  if (rect.width <= 0 || rect.height <= 0 ||
+      rect.right < mapRect.left || rect.left > mapRect.right ||
+      rect.bottom < mapRect.top || rect.top > mapRect.bottom) {
+    return false;
+  }
+
+  const clone = visibleSource.cloneNode(true);
+  clone.classList.remove('object-detail-target-glow', 'multi-select-target-glow', 'selected');
+  Object.assign(clone.style, {
+    position: 'absolute',
+    left: `${rect.left - mapRect.left}px`,
+    top: `${rect.top - mapRect.top}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+    transform: 'none',
+    margin: '0',
+    maxWidth: 'none',
+    pointerEvents: 'none',
+    zIndex: style.zIndex && style.zIndex !== 'auto' ? style.zIndex : (marker.options?.zIndexOffset || 0),
+  });
+  clone.querySelectorAll('.object-detail-target-glow, .multi-select-target-glow, .selected').forEach(el => {
+    el.classList.remove('object-detail-target-glow', 'multi-select-target-glow', 'selected');
+  });
+  clone.querySelectorAll('img').forEach(img => waitList.push(waitForExportImageReady(img)));
+  root.appendChild(clone);
+  return true;
+}
+
+function cloneExportVectorSvg(sourceSvg, root, mapRect) {
+  const style = getComputedStyle(sourceSvg);
+  if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) <= 0) return false;
+  const rect = sourceSvg.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0 ||
+      rect.right < mapRect.left || rect.left > mapRect.right ||
+      rect.bottom < mapRect.top || rect.top > mapRect.bottom) {
+    return false;
+  }
+  const clone = sourceSvg.cloneNode(true);
+  clone.classList.remove('leaflet-zoom-animated');
+  clone.querySelectorAll('.object-detail-target-glow, .multi-select-target-glow, .selected').forEach(el => {
+    el.classList.remove('object-detail-target-glow', 'multi-select-target-glow', 'selected');
+  });
+  clone.setAttribute('width', String(rect.width));
+  clone.setAttribute('height', String(rect.height));
+  Object.assign(clone.style, {
+    position: 'absolute',
+    left: `${rect.left - mapRect.left}px`,
+    top: `${rect.top - mapRect.top}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+    maxWidth: 'none',
+    transform: 'none',
+    overflow: 'visible',
+    pointerEvents: 'none',
+  });
+  root.appendChild(clone);
+  return true;
+}
+
+async function createExportDrawnSnapshot(mapEl) {
+  const rect = mapEl.getBoundingClientRect();
+  const width = Math.round(rect.width);
+  const height = Math.round(rect.height);
+  if (width <= 0 || height <= 0) return null;
+
+  const root = document.createElement('div');
+  root.className = 'export-drawn-snapshot';
+  Object.assign(root.style, {
+    position: 'absolute',
+    inset: '0',
+    overflow: 'hidden',
+    pointerEvents: 'none',
+    zIndex: '650',
+  });
+
+  const vectorRoot = document.createElement('div');
+  Object.assign(vectorRoot.style, {
+    position: 'absolute',
+    inset: '0',
+    overflow: 'hidden',
+    pointerEvents: 'none',
+    zIndex: '0',
+  });
+
+  const markerRoot = document.createElement('div');
+  Object.assign(markerRoot.style, {
+    position: 'absolute',
+    inset: '0',
+    overflow: 'visible',
+    pointerEvents: 'none',
+    zIndex: '1',
+  });
+
+  root.appendChild(vectorRoot);
+  root.appendChild(markerRoot);
+  mapEl.appendChild(root);
+
+  let rendered = 0;
+  mapEl.querySelectorAll('.leaflet-overlay-pane svg').forEach(svg => {
+    if (cloneExportVectorSvg(svg, vectorRoot, rect)) rendered += 1;
+  });
+
+  const waitList = [];
+  const bottomToTop = [...layerOrder].reverse();
+  bottomToTop.forEach(name => {
+    const group = layers[name];
+    if (!group || !map.hasLayer(group)) return;
+    group.eachLayer(layer => {
+      if (layer instanceof L.Marker && cloneExportMarker(layer, markerRoot, waitList, rect)) rendered += 1;
+    });
+  });
+
+  if (!rendered) {
+    root.remove();
+    return null;
+  }
+
+  await Promise.all(waitList);
+  return { root };
+}
+
+function removeExportDrawnSnapshot(snapshot) {
+  snapshot?.root?.remove();
+}
+
 async function exportMapImage(format) {
   if (typeof html2canvas === 'undefined') {
     showStatus('html2canvas 函式庫尚未載入，請檢查網路連線。', true);
@@ -6904,13 +7197,20 @@ async function exportMapImage(format) {
   const buttons = document.querySelectorAll('.btn-format');
   const mapEl = document.getElementById('map');
   buttons.forEach(b => b.disabled = true);
+  mapEl.classList.add('exporting-map-image');
   showStatus('正在準備匯出…');
 
   // 暫時隱藏不應出現在輸出中的 UI 元件
   const selectorsToHide = [
+    '.leaflet-control-container',
     '.leaflet-control-zoom',
     '.leaflet-control-attribution',
+    '.leaflet-control-map-lock',
+    '#historyControls',
+    '.history-row',
+    '.map-undo-controls',
     '.basemap-toggle',
+    '.placed-basemap-actions',
     '.placed-basemap-action',
     '.basemap-adjust',
     '.object-detail-popup',
@@ -6957,6 +7257,24 @@ async function exportMapImage(format) {
     }
   }
 
+  // html2canvas 對 Leaflet 原生 SVG/marker pane 偶爾會漏截或裁切。
+  // 匯出時另建一份不帶 Leaflet transform 的「已繪製物件快照」，再隱藏原 pane。
+  let exportDrawnSnapshot = null;
+  const hiddenDrawnPanes = [];
+  try {
+    exportDrawnSnapshot = await createExportDrawnSnapshot(mapEl);
+    if (exportDrawnSnapshot) {
+      mapEl.querySelectorAll('.leaflet-overlay-pane, .leaflet-marker-pane, .leaflet-shadow-pane, .leaflet-tooltip-pane').forEach(el => {
+        hiddenDrawnPanes.push({ el, prev: el.style.visibility });
+        el.style.visibility = 'hidden';
+      });
+    }
+  } catch (err) {
+    console.warn('Export drawn snapshot failed; falling back to live Leaflet panes.', err);
+    removeExportDrawnSnapshot(exportDrawnSnapshot);
+    exportDrawnSnapshot = null;
+  }
+
   const restoreLeafletTransforms = freezeLeafletTransformsForExport(mapEl);
 
   // 再等一個 frame 讓臨時輸出層與其餘物件完成重排
@@ -6965,12 +7283,14 @@ async function exportMapImage(format) {
   let canvas;
   try {
     showStatus(`正在擷取地圖…（${exportScale}x，需數秒）`);
-    const rect = mapEl.getBoundingClientRect();
+    const rect = getVisibleMapExportRect(mapEl);
     canvas = await html2canvas(mapEl, {
       backgroundColor: transparent ? null : '#ffffff',
       useCORS: true,
       allowTaint: false,
       scale: exportScale,
+      x: Math.round(rect.left + window.scrollX),
+      y: Math.round(rect.top + window.scrollY),
       width: Math.round(rect.width),
       height: Math.round(rect.height),
       windowWidth: document.documentElement.clientWidth,
@@ -6981,21 +7301,27 @@ async function exportMapImage(format) {
     });
   } catch (err) {
     showStatus('擷取失敗：' + err.message + '（部分地圖磚可能未支援 CORS）', true);
+    removeExportDrawnSnapshot(exportDrawnSnapshot);
     removeExportRasterSnapshot(exportRasterSnapshot);
     restoreLeafletTransforms();
     restoreHighlights();
     restoreList.forEach(r => r.el.style.visibility = r.prev);
+    hiddenDrawnPanes.forEach(r => r.el.style.visibility = r.prev);
     hiddenTilePanes.forEach(r => r.el.style.display = r.prev);
+    mapEl.classList.remove('exporting-map-image');
     buttons.forEach(b => b.disabled = false);
     return;
   }
 
   // 還原 UI
+  removeExportDrawnSnapshot(exportDrawnSnapshot);
   removeExportRasterSnapshot(exportRasterSnapshot);
   restoreLeafletTransforms();
   restoreHighlights();
   restoreList.forEach(r => r.el.style.visibility = r.prev);
+  hiddenDrawnPanes.forEach(r => r.el.style.visibility = r.prev);
   hiddenTilePanes.forEach(r => r.el.style.display = r.prev);
+  mapEl.classList.remove('exporting-map-image');
 
   // 輸出
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
