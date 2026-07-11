@@ -72,6 +72,27 @@ main {
   opacity: 0 !important;
   pointer-events: none !important;
 }
+body.exporting-map-image .leaflet-control-container,
+body.exporting-map-image #sidebar,
+body.exporting-map-image #historyControls,
+body.exporting-map-image .history-row,
+body.exporting-map-image .basemap-toggle,
+body.exporting-map-image .placed-basemap-actions,
+body.exporting-map-image .placed-basemap-action,
+body.exporting-map-image .basemap-adjust,
+body.exporting-map-image .object-detail-popup,
+body.exporting-map-image .object-detail-panel,
+body.exporting-map-image .multi-select-panel,
+body.exporting-map-image .status,
+body.exporting-map-image .leaflet-pm-toolbar,
+body.exporting-map-image .export-crop-box {
+  display: none !important;
+}
+body.exporting-map-image #sidebar {
+  display: block !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
 .brand { padding: 18px 18px 14px; border-bottom: 1px solid var(--border); }
 .brand h1 { font-size: 19px; font-weight: 700; letter-spacing: 0; color: var(--text); line-height: 1.25; }
 .brand-reload {
@@ -458,6 +479,32 @@ main {
 .checkbox-row input { cursor: pointer; }
 
 .format-row { display: flex; gap: 6px; margin-bottom: 6px; }
+.export-crop-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.export-crop-row button {
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: white;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.export-crop-row button:hover { border-color: var(--text); }
+.export-crop-row button.active {
+  background: #e8e8e6;
+  border-color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--text);
+}
+.export-crop-row button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .export-scale-row {
   display: flex;
   align-items: center;
@@ -508,10 +555,55 @@ main { position: relative; }
 #map.map-locked { cursor: default; }
 #map.drawing { cursor: crosshair; }
 #map.placing { cursor: copy; }
+#map.export-cropping { cursor: crosshair; }
 #map.drawing .leaflet-interactive,
 #map.placing .leaflet-interactive {
   pointer-events: none;
 }
+.export-crop-box {
+  position: absolute;
+  border: 2px solid #1d9e75;
+  border-radius: 8px;
+  background: rgba(29, 158, 117, 0.08);
+  box-shadow:
+    0 0 0 9999px rgba(255, 255, 255, 0.20),
+    0 10px 28px rgba(0, 0, 0, 0.20);
+  z-index: 1300;
+  pointer-events: auto;
+  touch-action: none;
+}
+.export-crop-box::before {
+  content: "輸出範圍";
+  position: absolute;
+  left: 10px;
+  top: -28px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.16);
+  white-space: nowrap;
+}
+.export-crop-box[data-drawing="true"]::before { content: "拖曳框選輸出範圍"; }
+.export-crop-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #1d9e75;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
+}
+.export-crop-handle[data-handle="nw"] { left: -8px; top: -8px; cursor: nwse-resize; }
+.export-crop-handle[data-handle="n"] { left: 50%; top: -8px; transform: translateX(-50%); cursor: ns-resize; }
+.export-crop-handle[data-handle="ne"] { right: -8px; top: -8px; cursor: nesw-resize; }
+.export-crop-handle[data-handle="e"] { right: -8px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+.export-crop-handle[data-handle="se"] { right: -8px; bottom: -8px; cursor: nwse-resize; }
+.export-crop-handle[data-handle="s"] { left: 50%; bottom: -8px; transform: translateX(-50%); cursor: ns-resize; }
+.export-crop-handle[data-handle="sw"] { left: -8px; bottom: -8px; cursor: nesw-resize; }
+.export-crop-handle[data-handle="w"] { left: -8px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
 
 .leaflet-control-map-lock .map-lock-button {
   width: 30px;
@@ -1540,18 +1632,23 @@ main { position: relative; }
       <div class="export-scale-row">
         <label for="exportScale">輸出倍率</label>
         <select id="exportScale">
-          <option value="1">1x（較快）</option>
-          <option value="2" selected>2x（標準）</option>
+          <option value="1">1x（預覽）</option>
+          <option value="2">2x（標準）</option>
           <option value="3">3x（高解析）</option>
-          <option value="4">4x（超高解析）</option>
+          <option value="4" selected>4x（超高解析）</option>
+          <option value="5">5x（最高解析，較慢）</option>
         </select>
+      </div>
+      <div class="export-crop-row">
+        <button type="button" id="exportCropToggle">設定截圖範圍</button>
+        <button type="button" id="exportCropClear" disabled>清除範圍</button>
       </div>
       <div class="format-row">
         <button class="btn-format" data-format="png">PNG</button>
         <button class="btn-format" data-format="jpg">JPG</button>
         <button class="btn-format" data-format="pdf">PDF</button>
       </div>
-      <p class="hint">PNG 支援透明背景，適合疊加在簡報或文件上；JPG 體積小但只能白底；PDF 適合列印。<br>※ 透明背景模式下，JPG 會以白色填滿（JPG 本身不支援透明）。</p>
+      <p class="hint">可先框出截圖範圍，輸出會依照框線裁切；未設定時會擷取目前可見的地圖畫面。PNG 支援透明背景；JPG 體積小但只能白底；PDF 適合列印。</p>
     </div>
 
     <div class="section">
@@ -6732,11 +6829,6 @@ document.querySelectorAll('.btn-format').forEach(btn => {
   btn.addEventListener('click', () => exportMapImage(btn.dataset.format));
 });
 
-function parseCssLength(value) {
-  const n = parseFloat(value);
-  return Number.isFinite(n) ? n : 0;
-}
-
 function getVisibleMapExportRect(mapEl) {
   const mapRect = mapEl.getBoundingClientRect();
   const sidebar = document.getElementById('sidebar');
@@ -6767,68 +6859,225 @@ function getVisibleMapExportRect(mapEl) {
   };
 }
 
-function getTranslateFromTransform(transform) {
-  if (!transform || transform === 'none') return { x: 0, y: 0 };
-  try {
-    const matrix = new DOMMatrixReadOnly(transform);
-    return { x: matrix.m41 || 0, y: matrix.m42 || 0 };
-  } catch (err) {
-    const match = transform.match(/matrix(?:3d)?\(([^)]+)\)/);
-    if (!match) return { x: 0, y: 0 };
-    const parts = match[1].split(',').map(v => parseFloat(v.trim()));
-    if (parts.length === 16) return { x: parts[12] || 0, y: parts[13] || 0 };
-    return { x: parts[4] || 0, y: parts[5] || 0 };
-  }
-}
+const EXPORT_CROP_MIN_SIZE = 80;
+let exportCropRect = null;
+let exportCropBox = null;
+let exportCropDrawing = false;
+let exportCropDraftStart = null;
+let exportCropDragState = null;
 
-function freezeLeafletTransformsForExport(mapEl) {
-  const selectors = [
-    '.leaflet-map-pane',
-    '.leaflet-pane',
-    '.leaflet-tile-container',
-    '.leaflet-tile',
-    '.leaflet-image-layer',
-    '.leaflet-marker-icon',
-    '.leaflet-marker-shadow',
-    'svg.leaflet-zoom-animated',
-  ];
-  const candidates = [];
-  selectors.forEach(sel => mapEl.querySelectorAll(sel).forEach(el => {
-    if (!candidates.includes(el)) candidates.push(el);
-  }));
-
-  const restore = [];
-  candidates.forEach(el => {
-    const computed = getComputedStyle(el);
-    const { x, y } = getTranslateFromTransform(computed.transform);
-    if (Math.abs(x) < 0.01 && Math.abs(y) < 0.01) return;
-    restore.push({
-      el,
-      transform: el.style.transform,
-      left: el.style.left,
-      top: el.style.top,
-      right: el.style.right,
-      bottom: el.style.bottom,
-    });
-    const baseLeft = parseCssLength(el.style.left || computed.left);
-    const baseTop = parseCssLength(el.style.top || computed.top);
-    el.style.left = `${baseLeft + x}px`;
-    el.style.top = `${baseTop + y}px`;
-    el.style.right = 'auto';
-    el.style.bottom = 'auto';
-    el.style.transform = 'none';
-  });
-
-  return () => {
-    restore.reverse().forEach(item => {
-      item.el.style.transform = item.transform;
-      item.el.style.left = item.left;
-      item.el.style.top = item.top;
-      item.el.style.right = item.right;
-      item.el.style.bottom = item.bottom;
-    });
+function getVisibleMapRectRelative(mapEl) {
+  const mapRect = mapEl.getBoundingClientRect();
+  const visible = getVisibleMapExportRect(mapEl);
+  return {
+    left: visible.left - mapRect.left,
+    top: visible.top - mapRect.top,
+    width: visible.width,
+    height: visible.height,
   };
 }
+
+function clampExportCropRect(rect, mapEl = document.getElementById('map')) {
+  const bounds = getVisibleMapRectRelative(mapEl);
+  let width = Math.max(EXPORT_CROP_MIN_SIZE, Math.min(rect.width, bounds.width));
+  let height = Math.max(EXPORT_CROP_MIN_SIZE, Math.min(rect.height, bounds.height));
+  let left = Math.min(Math.max(rect.left, bounds.left), bounds.left + bounds.width - width);
+  let top = Math.min(Math.max(rect.top, bounds.top), bounds.top + bounds.height - height);
+  return { left, top, width, height };
+}
+
+function updateExportCropButtons() {
+  const toggle = document.getElementById('exportCropToggle');
+  const clear = document.getElementById('exportCropClear');
+  if (toggle) {
+    toggle.classList.toggle('active', exportCropDrawing || !!exportCropRect);
+    toggle.textContent = exportCropDrawing
+      ? '框選中...'
+      : (exportCropRect ? '重新設定範圍' : '設定截圖範圍');
+  }
+  if (clear) clear.disabled = !exportCropRect && !exportCropDrawing;
+}
+
+function ensureExportCropBox() {
+  const mapEl = document.getElementById('map');
+  if (exportCropBox) return exportCropBox;
+  exportCropBox = document.createElement('div');
+  exportCropBox.className = 'export-crop-box';
+  exportCropBox.setAttribute('aria-hidden', 'true');
+  ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].forEach(handle => {
+    const node = document.createElement('span');
+    node.className = 'export-crop-handle';
+    node.dataset.handle = handle;
+    exportCropBox.appendChild(node);
+  });
+  L.DomEvent.disableClickPropagation(exportCropBox);
+  L.DomEvent.disableScrollPropagation(exportCropBox);
+  exportCropBox.addEventListener('pointerdown', onExportCropBoxPointerDown);
+  mapEl.appendChild(exportCropBox);
+  return exportCropBox;
+}
+
+function renderExportCropBox() {
+  if (!exportCropRect) {
+    exportCropBox?.remove();
+    exportCropBox = null;
+    updateExportCropButtons();
+    return;
+  }
+  const box = ensureExportCropBox();
+  const rect = exportCropRect;
+  Object.assign(box.style, {
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+  });
+  box.dataset.drawing = exportCropDrawing ? 'true' : 'false';
+  updateExportCropButtons();
+}
+
+function startExportCropDrawing() {
+  const mapEl = document.getElementById('map');
+  exportCropDrawing = true;
+  exportCropDraftStart = null;
+  exportCropRect = null;
+  mapEl.classList.add('export-cropping');
+  renderExportCropBox();
+  showStatus('請在地圖上拖曳框出要輸出的範圍。', true);
+}
+
+function stopExportCropDrawing() {
+  exportCropDrawing = false;
+  exportCropDraftStart = null;
+  document.getElementById('map')?.classList.remove('export-cropping');
+  renderExportCropBox();
+}
+
+function clearExportCropRect() {
+  stopExportCropDrawing();
+  exportCropRect = null;
+  renderExportCropBox();
+  showStatus('已清除截圖範圍，匯出會使用目前可見地圖畫面。', true);
+}
+
+function getExportCropPoint(e) {
+  const mapRect = document.getElementById('map').getBoundingClientRect();
+  return { x: e.clientX - mapRect.left, y: e.clientY - mapRect.top };
+}
+
+function rectFromExportCropPoints(a, b) {
+  return {
+    left: Math.min(a.x, b.x),
+    top: Math.min(a.y, b.y),
+    width: Math.abs(b.x - a.x),
+    height: Math.abs(b.y - a.y),
+  };
+}
+
+function onExportCropMapPointerDown(e) {
+  if (!exportCropDrawing || e.button !== 0) return;
+  if (e.target.closest('.export-crop-box')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const mapEl = document.getElementById('map');
+  exportCropDraftStart = getExportCropPoint(e);
+  exportCropRect = { left: exportCropDraftStart.x, top: exportCropDraftStart.y, width: EXPORT_CROP_MIN_SIZE, height: EXPORT_CROP_MIN_SIZE };
+  renderExportCropBox();
+
+  const move = (evt) => {
+    evt.preventDefault();
+    const current = getExportCropPoint(evt);
+    exportCropRect = clampExportCropRect(rectFromExportCropPoints(exportCropDraftStart, current), mapEl);
+    renderExportCropBox();
+  };
+  const up = (evt) => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    if (exportCropRect && exportCropRect.width >= EXPORT_CROP_MIN_SIZE && exportCropRect.height >= EXPORT_CROP_MIN_SIZE) {
+      exportCropRect = clampExportCropRect(exportCropRect, mapEl);
+      stopExportCropDrawing();
+      showStatus('截圖範圍已設定，可直接輸出 PNG/JPG/PDF。', true);
+    } else {
+      clearExportCropRect();
+    }
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up, { once: true });
+}
+
+function onExportCropBoxPointerDown(e) {
+  if (!exportCropRect || e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const handle = e.target.dataset.handle || 'move';
+  exportCropDragState = {
+    handle,
+    startX: e.clientX,
+    startY: e.clientY,
+    rect: { ...exportCropRect },
+  };
+  const move = (evt) => {
+    evt.preventDefault();
+    const dx = evt.clientX - exportCropDragState.startX;
+    const dy = evt.clientY - exportCropDragState.startY;
+    exportCropRect = resizeExportCropRect(exportCropDragState.rect, exportCropDragState.handle, dx, dy);
+    renderExportCropBox();
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    exportCropDragState = null;
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up, { once: true });
+}
+
+function resizeExportCropRect(start, handle, dx, dy) {
+  let left = start.left;
+  let top = start.top;
+  let width = start.width;
+  let height = start.height;
+
+  if (handle === 'move') {
+    left += dx;
+    top += dy;
+  } else {
+    if (handle.includes('w')) { left += dx; width -= dx; }
+    if (handle.includes('e')) { width += dx; }
+    if (handle.includes('n')) { top += dy; height -= dy; }
+    if (handle.includes('s')) { height += dy; }
+    if (width < EXPORT_CROP_MIN_SIZE) {
+      if (handle.includes('w')) left -= EXPORT_CROP_MIN_SIZE - width;
+      width = EXPORT_CROP_MIN_SIZE;
+    }
+    if (height < EXPORT_CROP_MIN_SIZE) {
+      if (handle.includes('n')) top -= EXPORT_CROP_MIN_SIZE - height;
+      height = EXPORT_CROP_MIN_SIZE;
+    }
+  }
+
+  return clampExportCropRect({ left, top, width, height });
+}
+
+function getExportCaptureRect(mapEl) {
+  const mapRect = mapEl.getBoundingClientRect();
+  if (exportCropRect) {
+    exportCropRect = clampExportCropRect(exportCropRect, mapEl);
+    return {
+      left: mapRect.left + exportCropRect.left,
+      top: mapRect.top + exportCropRect.top,
+      right: mapRect.left + exportCropRect.left + exportCropRect.width,
+      bottom: mapRect.top + exportCropRect.top + exportCropRect.height,
+      width: exportCropRect.width,
+      height: exportCropRect.height,
+    };
+  }
+  return getVisibleMapExportRect(mapEl);
+}
+
+document.getElementById('exportCropToggle')?.addEventListener('click', startExportCropDrawing);
+document.getElementById('exportCropClear')?.addEventListener('click', clearExportCropRect);
+document.getElementById('map')?.addEventListener('pointerdown', onExportCropMapPointerDown, true);
 
 function temporarilyRemoveExportOnlyHighlights() {
   const elements = [...document.querySelectorAll('.object-detail-target-glow')];
@@ -6836,492 +7085,560 @@ function temporarilyRemoveExportOnlyHighlights() {
   return () => elements.forEach(el => el.classList.add('object-detail-target-glow'));
 }
 
-function waitForExportImageReady(img, timeoutMs = 1400) {
-  if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-  return new Promise(resolve => {
-    let settled = false;
-    let timerId = null;
-    const done = () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timerId);
-      img.removeEventListener('load', done);
-      img.removeEventListener('error', done);
-      resolve();
-    };
-    timerId = setTimeout(done, timeoutMs);
-    img.addEventListener('load', done, { once: true });
-    img.addEventListener('error', done, { once: true });
+const exportImageCache = new Map();
+
+function loadExportImage(src) {
+  if (!src) return Promise.resolve(null);
+  if (exportImageCache.has(src)) return exportImageCache.get(src);
+  const promise = new Promise(resolve => {
+    const img = new Image();
+    if (!src.startsWith('data:') && !src.startsWith('blob:')) img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
   });
+  exportImageCache.set(src, promise);
+  return promise;
 }
 
-function getElementPaneZIndex(el) {
-  const pane = el.closest('.leaflet-pane');
-  if (!pane) return 200;
-  const value = parseInt(getComputedStyle(pane).zIndex, 10);
-  return Number.isFinite(value) ? value : 200;
+function isLatLngLike(value) {
+  return value && Number.isFinite(value.lat) && Number.isFinite(value.lng);
 }
 
-async function createExportRasterSnapshot(mapEl) {
+function flattenLatLngLines(latlngs) {
+  if (!Array.isArray(latlngs) || !latlngs.length) return [];
+  if (isLatLngLike(latlngs[0])) return [latlngs];
+  return latlngs.flatMap(item => flattenLatLngLines(item));
+}
+
+function parseDashArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map(Number).filter(Number.isFinite);
+  return String(value).split(/[,\s]+/).map(Number).filter(Number.isFinite);
+}
+
+function cssColor(value, fallback) {
+  if (!value || value === 'none') return fallback;
+  return value;
+}
+
+function canvasRoundRect(ctx, x, y, w, h, r) {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  ctx.lineTo(x + radius, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function getExportTextFont(weight, px) {
+  return `${weight} ${px}px -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif`;
+}
+
+function createExportProjector(rect, mapEl) {
   const mapRect = mapEl.getBoundingClientRect();
-  const sourceImages = [
-    ...mapEl.querySelectorAll('.leaflet-tile-pane img.leaflet-tile'),
-    ...placedBasemaps.map(item => item.layer?.getElement?.()).filter(Boolean),
-  ];
-  const seen = new Set();
-  const visibleImages = sourceImages.filter(img => {
-    if (!img || seen.has(img)) return false;
-    seen.add(img);
-    const style = getComputedStyle(img);
-    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) <= 0) return false;
-    const rect = img.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0 &&
-      rect.right > mapRect.left && rect.left < mapRect.right &&
-      rect.bottom > mapRect.top && rect.top < mapRect.bottom;
-  });
-  if (!visibleImages.length) return null;
-
-  const rootsByZIndex = new Map();
-  const waitList = [];
-  visibleImages.forEach(img => {
-    const rect = img.getBoundingClientRect();
-    const zIndex = getElementPaneZIndex(img);
-    let root = rootsByZIndex.get(zIndex);
-    if (!root) {
-      root = document.createElement('div');
-      root.className = 'export-raster-snapshot';
-      Object.assign(root.style, {
-        position: 'absolute',
-        inset: '0',
-        overflow: 'hidden',
-        pointerEvents: 'none',
-        zIndex: String(zIndex),
-      });
-      if (img.classList.contains('leaflet-tile')) {
-        root.style.filter = `brightness(${currentBrightness}) contrast(${currentContrast})`;
-      }
-      rootsByZIndex.set(zIndex, root);
-      mapEl.appendChild(root);
-    }
-
-    const clone = document.createElement('img');
-    clone.crossOrigin = 'anonymous';
-    clone.decoding = 'sync';
-    clone.src = img.currentSrc || img.src;
-    const style = getComputedStyle(img);
-    Object.assign(clone.style, {
-      position: 'absolute',
-      left: `${rect.left - mapRect.left}px`,
-      top: `${rect.top - mapRect.top}px`,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`,
-      maxWidth: 'none',
-      transform: 'none',
-      opacity: style.opacity || '1',
-      objectFit: 'fill',
-    });
-    if (!img.classList.contains('leaflet-tile')) {
-      clone.style.filter = style.filter && style.filter !== 'none' ? style.filter : '';
-    }
-    root.appendChild(clone);
-    waitList.push(waitForExportImageReady(clone));
-  });
-
-  await Promise.all(waitList);
-  return { roots: [...rootsByZIndex.values()] };
-}
-
-function removeExportRasterSnapshot(snapshot) {
-  snapshot?.roots?.forEach(root => root.remove());
-}
-
-function collectLatLngSequences(latlngs) {
-  const sequences = [];
-  const isLatLng = value => value && Number.isFinite(value.lat) && Number.isFinite(value.lng);
-  const walk = value => {
-    if (!Array.isArray(value) || !value.length) return;
-    if (isLatLng(value[0])) {
-      sequences.push(value);
-    } else {
-      value.forEach(walk);
-    }
+  const offsetX = rect.left - mapRect.left;
+  const offsetY = rect.top - mapRect.top;
+  return {
+    rect,
+    mapRect,
+    point(latlng) {
+      const p = map.latLngToContainerPoint(latlng);
+      return { x: p.x - offsetX, y: p.y - offsetY };
+    },
+    layerPointToExportPoint(point) {
+      return { x: point.x - offsetX, y: point.y - offsetY };
+    },
   };
-  walk(latlngs);
-  return sequences;
 }
 
-function latLngSequenceToSvgPath(sequence, closePath) {
-  const points = sequence
-    .map(latlng => map.latLngToContainerPoint(latlng))
-    .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
-  if (points.length < (closePath ? 3 : 2)) return '';
-  const body = points.map((point, index) => {
-    const cmd = index === 0 ? 'M' : 'L';
-    return `${cmd}${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
-  }).join(' ');
-  return closePath ? `${body} Z` : body;
+function drawExportPath(ctx, points, closed) {
+  if (!points.length) return;
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i += 1) ctx.lineTo(points[i].x, points[i].y);
+  if (closed) ctx.closePath();
 }
 
-function normalizeSvgDashArray(value) {
-  if (value == null || value === '' || value === 'none') return '';
-  return String(value).replace(/,/g, ' ').trim();
+function drawExportArrow(ctx, from, to, color, width) {
+  if (!from || !to) return;
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy);
+  if (!len) return;
+  const angle = Math.atan2(dy, dx);
+  const size = Math.max(8, width * 3);
+  ctx.save();
+  ctx.translate(to.x, to.y);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-size, size * 0.45);
+  ctx.lineTo(-size * 0.72, 0);
+  ctx.lineTo(-size, -size * 0.45);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
 }
 
-function createExportSvgArrowDefs(svg) {
-  const ns = 'http://www.w3.org/2000/svg';
-  const defs = document.createElementNS(ns, 'defs');
-  const buildArrow = (id, orient) => {
-    const marker = document.createElementNS(ns, 'marker');
-    marker.setAttribute('id', id);
-    marker.setAttribute('viewBox', '0 0 10 10');
-    marker.setAttribute('refX', '8');
-    marker.setAttribute('refY', '5');
-    marker.setAttribute('markerWidth', '6');
-    marker.setAttribute('markerHeight', '6');
-    marker.setAttribute('orient', orient);
-    marker.setAttribute('markerUnits', 'strokeWidth');
-    const path = document.createElementNS(ns, 'path');
-    path.setAttribute('d', 'M0,0 L10,5 L0,10 L3,5 Z');
-    path.setAttribute('fill', 'context-stroke');
-    marker.appendChild(path);
-    return marker;
-  };
-  defs.appendChild(buildArrow('export-route-arrow-end', 'auto'));
-  defs.appendChild(buildArrow('export-route-arrow-start', 'auto-start-reverse'));
-  svg.appendChild(defs);
-}
+function drawExportVectorLayer(ctx, layer, groupName, projector) {
+  if (!layer || layer._isLabel || layer._isHelper || !map.hasLayer(layer)) return;
+  if (!(layer instanceof L.Polyline)) return;
 
-function appendExportVectorPath(svg, layer, closePath) {
-  const ns = 'http://www.w3.org/2000/svg';
-  const options = layer.options || {};
+  const isPolygon = layer instanceof L.Polygon;
+  const lines = flattenLatLngLines(layer.getLatLngs());
+  if (!lines.length) return;
   const props = layer.feature?.properties || {};
-  const stroke = options.color || props.colorStroke || '#3b3a35';
-  const strokeWidth = options.weight ?? props.strokeWidth ?? (closePath ? 1.5 : 3);
-  const strokeOpacity = options.opacity ?? props.opacity ?? 1;
-  const fill = closePath
-    ? (options.fill === false ? 'none' : (options.fillColor || props.colorFill || options.color || '#d8d2c4'))
-    : 'none';
-  const fillOpacity = closePath ? (options.fillOpacity ?? props.fillOpacity ?? 0.5) : 0;
-  const dashArray = normalizeSvgDashArray(options.dashArray ?? props.dashArray);
-  const lineCap = options.lineCap || (closePath ? 'round' : 'round');
-  const lineJoin = options.lineJoin || 'round';
-  const arrowMode = closePath ? 'none' : (props.arrowMode || 'none');
-  const sequences = collectLatLngSequences(layer.getLatLngs ? layer.getLatLngs() : []);
-  let appended = 0;
+  const kind = props.kind || {
+    campus: 'campus',
+    greens: 'green',
+    pitches: 'pitch',
+    buildings: 'building',
+    routes: 'route',
+  }[groupName] || groupName;
+  const options = layer.options || {};
+  const strokeWidth = Number(props.strokeWidth ?? options.weight ?? (kind === 'route' ? 4.5 : 1.5));
+  const strokeColor = cssColor(props.colorStroke || options.color, '#3b3a35');
+  const strokeOpacity = Number(options.opacity ?? props.opacity ?? 1);
+  const dash = parseDashArray(props.dashArray != null ? props.dashArray : options.dashArray);
 
-  sequences.forEach(sequence => {
-    const d = latLngSequenceToSvgPath(sequence, closePath);
-    if (!d) return;
-    const path = document.createElementNS(ns, 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('fill', fill);
-    path.setAttribute('fill-opacity', String(fillOpacity));
-    path.setAttribute('fill-rule', 'evenodd');
-    path.setAttribute('stroke', stroke);
-    path.setAttribute('stroke-width', String(strokeWidth));
-    path.setAttribute('stroke-opacity', String(strokeOpacity));
-    path.setAttribute('stroke-linecap', lineCap);
-    path.setAttribute('stroke-linejoin', lineJoin);
-    if (dashArray) path.setAttribute('stroke-dasharray', dashArray);
-    if (arrowMode === 'end' || arrowMode === 'both') path.setAttribute('marker-end', 'url(#export-route-arrow-end)');
-    if (arrowMode === 'start' || arrowMode === 'both') path.setAttribute('marker-start', 'url(#export-route-arrow-start)');
-    svg.appendChild(path);
-    appended += 1;
-  });
+  ctx.save();
+  ctx.lineJoin = options.lineJoin || 'round';
+  ctx.lineCap = options.lineCap || (kind === 'route' ? 'round' : 'butt');
+  ctx.setLineDash(dash);
 
-  return appended;
-}
-
-function getElementVisualRect(el) {
-  const rects = [el, ...el.querySelectorAll('*')]
-    .map(node => node.getBoundingClientRect())
-    .filter(rect => rect.width > 0.5 && rect.height > 0.5);
-  if (!rects.length) return el.getBoundingClientRect();
-  return rects.reduce((acc, rect) => ({
-    left: Math.min(acc.left, rect.left),
-    top: Math.min(acc.top, rect.top),
-    right: Math.max(acc.right, rect.right),
-    bottom: Math.max(acc.bottom, rect.bottom),
-    width: Math.max(acc.right, rect.right) - Math.min(acc.left, rect.left),
-    height: Math.max(acc.bottom, rect.bottom) - Math.min(acc.top, rect.top),
-  }));
-}
-
-function cloneExportMarker(marker, root, waitList, mapRect) {
-  const source = marker.getElement?.() || marker._icon;
-  if (!source) return false;
-  const style = getComputedStyle(source);
-  if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) <= 0) return false;
-
-  const visibleSource = (source.classList.contains('label-marker') || source.classList.contains('text-marker'))
-    ? (source.firstElementChild || source)
-    : source;
-  const rect = getElementVisualRect(visibleSource);
-  if (rect.width <= 0 || rect.height <= 0 ||
-      rect.right < mapRect.left || rect.left > mapRect.right ||
-      rect.bottom < mapRect.top || rect.top > mapRect.bottom) {
-    return false;
+  if (isPolygon) {
+    const fillColor = cssColor(props.colorFill || options.fillColor, '#d3d1c7');
+    const fillOpacity = Number(props.fillOpacity ?? options.fillOpacity ?? 0.5);
+    if (fillOpacity > 0) {
+      ctx.beginPath();
+      lines.forEach(line => drawExportPath(ctx, line.map(ll => projector.point(ll)), true));
+      ctx.globalAlpha = fillOpacity;
+      ctx.fillStyle = fillColor;
+      ctx.fill('evenodd');
+    }
   }
 
-  const clone = visibleSource.cloneNode(true);
-  clone.classList.remove('object-detail-target-glow', 'multi-select-target-glow', 'selected');
-  Object.assign(clone.style, {
-    position: 'absolute',
-    left: `${rect.left - mapRect.left}px`,
-    top: `${rect.top - mapRect.top}px`,
-    width: `${rect.width}px`,
-    height: `${rect.height}px`,
-    transform: 'none',
-    margin: '0',
-    maxWidth: 'none',
-    pointerEvents: 'none',
-    zIndex: style.zIndex && style.zIndex !== 'auto' ? style.zIndex : (marker.options?.zIndexOffset || 0),
-  });
-  clone.querySelectorAll('.object-detail-target-glow, .multi-select-target-glow, .selected').forEach(el => {
-    el.classList.remove('object-detail-target-glow', 'multi-select-target-glow', 'selected');
-  });
-  clone.querySelectorAll('img').forEach(img => waitList.push(waitForExportImageReady(img)));
-  root.appendChild(clone);
-  return true;
-}
-
-function cloneExportVectorSvg(sourceSvg, root, mapRect) {
-  const style = getComputedStyle(sourceSvg);
-  if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) <= 0) return false;
-  const rect = sourceSvg.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0 ||
-      rect.right < mapRect.left || rect.left > mapRect.right ||
-      rect.bottom < mapRect.top || rect.top > mapRect.bottom) {
-    return false;
+  if (strokeWidth > 0 && strokeOpacity > 0) {
+    ctx.beginPath();
+    lines.forEach(line => drawExportPath(ctx, line.map(ll => projector.point(ll)), isPolygon));
+    ctx.globalAlpha = strokeOpacity;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.stroke();
   }
-  const clone = sourceSvg.cloneNode(true);
-  clone.classList.remove('leaflet-zoom-animated');
-  clone.querySelectorAll('.object-detail-target-glow, .multi-select-target-glow, .selected').forEach(el => {
-    el.classList.remove('object-detail-target-glow', 'multi-select-target-glow', 'selected');
-  });
-  clone.setAttribute('width', String(rect.width));
-  clone.setAttribute('height', String(rect.height));
-  Object.assign(clone.style, {
-    position: 'absolute',
-    left: `${rect.left - mapRect.left}px`,
-    top: `${rect.top - mapRect.top}px`,
-    width: `${rect.width}px`,
-    height: `${rect.height}px`,
-    maxWidth: 'none',
-    transform: 'none',
-    overflow: 'visible',
-    pointerEvents: 'none',
-  });
-  root.appendChild(clone);
-  return true;
-}
 
-async function createExportDrawnSnapshot(mapEl) {
-  const rect = mapEl.getBoundingClientRect();
-  const width = Math.round(rect.width);
-  const height = Math.round(rect.height);
-  if (width <= 0 || height <= 0) return null;
-
-  const root = document.createElement('div');
-  root.className = 'export-drawn-snapshot';
-  Object.assign(root.style, {
-    position: 'absolute',
-    inset: '0',
-    overflow: 'hidden',
-    pointerEvents: 'none',
-    zIndex: '650',
-  });
-
-  const vectorRoot = document.createElement('div');
-  Object.assign(vectorRoot.style, {
-    position: 'absolute',
-    inset: '0',
-    overflow: 'hidden',
-    pointerEvents: 'none',
-    zIndex: '0',
-  });
-
-  const markerRoot = document.createElement('div');
-  Object.assign(markerRoot.style, {
-    position: 'absolute',
-    inset: '0',
-    overflow: 'visible',
-    pointerEvents: 'none',
-    zIndex: '1',
-  });
-
-  root.appendChild(vectorRoot);
-  root.appendChild(markerRoot);
-  mapEl.appendChild(root);
-
-  let rendered = 0;
-  mapEl.querySelectorAll('.leaflet-overlay-pane svg').forEach(svg => {
-    if (cloneExportVectorSvg(svg, vectorRoot, rect)) rendered += 1;
-  });
-
-  const waitList = [];
-  const bottomToTop = [...layerOrder].reverse();
-  bottomToTop.forEach(name => {
-    const group = layers[name];
-    if (!group || !map.hasLayer(group)) return;
-    group.eachLayer(layer => {
-      if (layer instanceof L.Marker && cloneExportMarker(layer, markerRoot, waitList, rect)) rendered += 1;
+  if (!isPolygon && props.arrowMode && props.arrowMode !== 'none') {
+    ctx.globalAlpha = strokeOpacity;
+    lines.forEach(line => {
+      const points = line.map(ll => projector.point(ll));
+      if (points.length < 2) return;
+      if (props.arrowMode === 'end' || props.arrowMode === 'both') {
+        drawExportArrow(ctx, points[points.length - 2], points[points.length - 1], strokeColor, strokeWidth);
+      }
+      if (props.arrowMode === 'start' || props.arrowMode === 'both') {
+        drawExportArrow(ctx, points[1], points[0], strokeColor, strokeWidth);
+      }
     });
-  });
-
-  if (!rendered) {
-    root.remove();
-    return null;
   }
 
-  await Promise.all(waitList);
-  return { root };
+  ctx.restore();
 }
 
-function removeExportDrawnSnapshot(snapshot) {
-  snapshot?.root?.remove();
+function getExportLabelMetrics(sizeId) {
+  const map = {
+    sm: { font: 9, padX: 7, padY: 2, radius: 10, weight: 500 },
+    md: { font: 11, padX: 8, padY: 2, radius: 12, weight: 500 },
+    lg: { font: 14, padX: 10, padY: 3, radius: 14, weight: 500 },
+    xl: { font: 18, padX: 12, padY: 4, radius: 16, weight: 600 },
+  };
+  return map[sizeId] || map[DEFAULT_LABEL_SIZE];
+}
+
+function drawExportPillText(ctx, text, x, y, options = {}) {
+  if (!text) return;
+  const fontPx = options.fontPx || 11;
+  const weight = options.weight || 500;
+  const padX = options.padX ?? 8;
+  const padY = options.padY ?? 2;
+  const radius = options.radius ?? 12;
+  ctx.save();
+  ctx.font = getExportTextFont(weight, fontPx);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const width = Math.ceil(ctx.measureText(text).width + padX * 2);
+  const height = Math.ceil(fontPx * 1.2 + padY * 2);
+  const left = x - width / 2;
+  const top = y - height / 2;
+  const bg = options.background ?? 'rgba(255,255,255,0.85)';
+  if (bg !== 'transparent' && bg !== 'none') {
+    canvasRoundRect(ctx, left, top, width, height, radius);
+    ctx.fillStyle = bg;
+    ctx.globalAlpha = options.backgroundAlpha ?? 1;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = options.color || '#2c2c2a';
+  ctx.fillText(text, left + padX, y);
+  ctx.restore();
+}
+
+function drawExportShapeLabel(ctx, labelMarker, projector) {
+  const parent = labelMarker?._parentLayer;
+  const props = parent?.feature?.properties || {};
+  const text = props.name || '';
+  if (!text) return;
+  const p = projector.point(labelMarker.getLatLng());
+  const m = getExportLabelMetrics(props.labelSize || DEFAULT_LABEL_SIZE);
+  drawExportPillText(ctx, text, p.x, p.y, {
+    fontPx: m.font,
+    weight: m.weight,
+    padX: m.padX,
+    padY: m.padY,
+    radius: m.radius,
+    background: props.labelBgColor || 'rgba(255,255,255,0.85)',
+    color: props.labelTextColor || '#2c2c2a',
+  });
+}
+
+async function drawExportFacilityMarker(ctx, marker, projector) {
+  const props = marker.feature?.properties || {};
+  const iconType = findIconType(props.iconId);
+  if (!iconType) return;
+  const basePx = ICON_SIZE_MAP[props.iconSize || DEFAULT_ICON_SIZE] || ICON_SIZE_MAP[DEFAULT_ICON_SIZE];
+  const px = basePx * (ICON_SIZE_MULTIPLIER[iconType.id] || 1);
+  const p = projector.point(marker.getLatLng());
+  const left = p.x - px / 2;
+  const top = p.y - px / 2;
+  if (iconType.imageData) {
+    const img = await loadExportImage(iconType.imageData);
+    if (img) ctx.drawImage(img, left, top, px, px);
+    return;
+  }
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, px / 2, 0, Math.PI * 2);
+  ctx.fillStyle = iconType.color || '#111111';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#ffffff';
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = getExportTextFont(600, Math.max(10, Math.round(px * 0.45)));
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(iconType.char || '', p.x, p.y);
+  ctx.restore();
+}
+
+function drawExportTextMarker(ctx, marker, projector) {
+  const props = marker.feature?.properties || {};
+  const text = props.text || '標題';
+  const size = TEXT_SIZES.find(s => s.id === (props.textSize || DEFAULT_TEXT_SIZE)) || TEXT_SIZES[2];
+  const p = projector.point(marker.getLatLng());
+  drawExportPillText(ctx, text, p.x, p.y, {
+    fontPx: size.px,
+    weight: 700,
+    padX: 10,
+    padY: 4,
+    radius: 4,
+    background: props.bgColor || 'rgba(255,255,255,0.85)',
+    color: props.textColor || DEFAULT_TEXT_COLOR,
+  });
+}
+
+async function drawExportCompass(ctx, marker, projector) {
+  const props = marker.feature?.properties || {};
+  const size = getTextElementSize('compass', props.elementSize || DEFAULT_TEXT_ELEMENT_SIZE);
+  const p = projector.point(marker.getLatLng());
+  const img = await loadExportImage(COMPASS_IMAGE_DATA);
+  if (!img) return;
+  ctx.drawImage(img, p.x - size.width / 2, p.y - size.height / 2, size.width, size.height);
+}
+
+async function drawExportLegendSymbol(ctx, item, x, y, symbolPx) {
+  if (item.type === 'route') {
+    const w = Math.round(symbolPx * 1.65);
+    ctx.save();
+    ctx.strokeStyle = DEFAULT_ROUTE_COLOR.stroke;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + w - 12, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#666666';
+    ctx.beginPath();
+    ctx.moveTo(x + w - 12, y - 6);
+    ctx.lineTo(x + w, y);
+    ctx.lineTo(x + w - 12, y + 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (item.imageData) {
+    const img = await loadExportImage(item.imageData);
+    if (img) ctx.drawImage(img, x, y - symbolPx / 2, symbolPx, symbolPx);
+    return;
+  }
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x + symbolPx / 2, y, symbolPx / 2, 0, Math.PI * 2);
+  ctx.fillStyle = item.color || '#111111';
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = getExportTextFont(700, Math.max(10, Math.round(symbolPx * 0.45)));
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(item.char || '', x + symbolPx / 2, y);
+  ctx.restore();
+}
+
+async function drawExportDynamicLegend(ctx, marker, projector) {
+  const props = marker.feature?.properties || {};
+  const layout = props.legendLayout === 'horizontal' ? 'horizontal' : 'vertical';
+  const sizeId = props.elementSize || DEFAULT_TEXT_ELEMENT_SIZE;
+  const factor = TEXT_ELEMENT_SIZE_FACTORS[sizeId] || TEXT_ELEMENT_SIZE_FACTORS[DEFAULT_TEXT_ELEMENT_SIZE];
+  const box = getDynamicLegendSize(sizeId, layout);
+  const center = projector.point(marker.getLatLng());
+  const left = center.x - box.width / 2;
+  const top = center.y - box.height / 2;
+  const headingPx = Math.round(14 * factor);
+  const textPx = Math.round(11 * factor);
+  const symbolPx = Math.round(textPx * (layout === 'horizontal' ? 1.35 : 1.1));
+  const groups = layout === 'horizontal' ? getHorizontalLegendGroups() : getLegendGroups();
+  const hasItems = groups.some(group => group.items.length);
+
+  ctx.save();
+  canvasRoundRect(ctx, left, top, box.width, box.height, 8);
+  ctx.fillStyle = layout === 'horizontal' ? '#ffffff' : 'rgba(255,255,255,0.92)';
+  ctx.fill();
+  if (layout !== 'horizontal') {
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  if (!hasItems) {
+    ctx.fillStyle = '#999999';
+    ctx.font = getExportTextFont(600, textPx);
+    ctx.textBaseline = 'top';
+    ctx.fillText('尚未放置設施或路線', left + 8, top + 8);
+    ctx.restore();
+    return;
+  }
+
+  if (layout === 'horizontal') {
+    const colWidths = [Math.round(136 * factor), Math.round(140 * factor), Math.round(200 * factor)];
+    const gap = 8;
+    let x = left + 10;
+    const headingY = top + 8;
+    const itemStartY = headingY + headingPx + 12;
+    ctx.textBaseline = 'top';
+    for (let g = 0; g < groups.length; g += 1) {
+      const group = groups[g];
+      ctx.fillStyle = '#555555';
+      ctx.font = getExportTextFont(800, headingPx);
+      ctx.fillText(group.title, x, headingY);
+      const itemXs = group.id === 'facilities' ? [x, x + Math.round(colWidths[g] / 2)] : [x];
+      const rows = group.id === 'facilities' ? Math.max(1, Math.ceil(group.items.length / 2)) : group.items.length;
+      for (let i = 0; i < group.items.length; i += 1) {
+        const col = group.id === 'facilities' ? Math.floor(i / rows) : 0;
+        const row = group.id === 'facilities' ? i % rows : i;
+        const iy = itemStartY + row * Math.round(symbolPx * 1.35);
+        const ix = itemXs[col] || x;
+        await drawExportLegendSymbol(ctx, group.items[i], ix, iy + symbolPx / 2, symbolPx);
+        ctx.fillStyle = '#999999';
+        ctx.font = getExportTextFont(700, textPx);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(getLegendDisplayName(group.items[i]), ix + symbolPx + 6, iy + symbolPx / 2);
+      }
+      x += colWidths[g] + gap;
+    }
+  } else {
+    let y = top + 8;
+    for (const group of groups) {
+      if (!group.items.length) continue;
+      ctx.fillStyle = '#555555';
+      ctx.font = getExportTextFont(800, headingPx);
+      ctx.textBaseline = 'top';
+      ctx.fillText(group.title, left + 8, y);
+      y += headingPx + 7;
+      for (const item of group.items) {
+        const rowHeight = Math.round(symbolPx * 1.22);
+        await drawExportLegendSymbol(ctx, item, left + 8, y + rowHeight / 2, symbolPx);
+        ctx.fillStyle = '#999999';
+        ctx.font = getExportTextFont(700, textPx);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(getLegendDisplayName(item), left + 8 + symbolPx + 6, y + rowHeight / 2);
+        y += rowHeight;
+      }
+      y += 8;
+    }
+  }
+  ctx.restore();
+}
+
+async function drawExportTextElementMarker(ctx, marker, projector) {
+  const type = marker.feature?.properties?.textType;
+  if (type === 'legend') return drawExportDynamicLegend(ctx, marker, projector);
+  if (type === 'compass') return drawExportCompass(ctx, marker, projector);
+  return drawExportTextMarker(ctx, marker, projector);
+}
+
+function getIntersectionRect(a, b) {
+  const left = Math.max(a.left, b.left);
+  const top = Math.max(a.top, b.top);
+  const right = Math.min(a.right, b.right);
+  const bottom = Math.min(a.bottom, b.bottom);
+  if (right <= left || bottom <= top) return null;
+  return { left, top, right, bottom, width: right - left, height: bottom - top };
+}
+
+async function drawExportImageElement(ctx, img, rect, options = {}) {
+  if (!img || !img.getBoundingClientRect) return;
+  if (!img.complete) {
+    try { await img.decode(); } catch (_) {}
+  }
+  const imgRect = img.getBoundingClientRect();
+  if (!imgRect.width || !imgRect.height) return;
+  const inter = getIntersectionRect(imgRect, rect);
+  if (!inter) return;
+  const naturalWidth = img.naturalWidth || imgRect.width;
+  const naturalHeight = img.naturalHeight || imgRect.height;
+  const sx = (inter.left - imgRect.left) * naturalWidth / imgRect.width;
+  const sy = (inter.top - imgRect.top) * naturalHeight / imgRect.height;
+  const sw = inter.width * naturalWidth / imgRect.width;
+  const sh = inter.height * naturalHeight / imgRect.height;
+  ctx.save();
+  if (options.filter) ctx.filter = options.filter;
+  ctx.drawImage(img, sx, sy, sw, sh, inter.left - rect.left, inter.top - rect.top, inter.width, inter.height);
+  ctx.restore();
+}
+
+async function drawExportBaseTiles(ctx, rect, transparent) {
+  if (transparent || !basemapVisible) return;
+  const tileFilter = `brightness(${currentBrightness}) contrast(${currentContrast})`;
+  const tiles = [...document.querySelectorAll('#map .leaflet-tile-pane img.leaflet-tile')];
+  for (const tile of tiles) {
+    const style = getComputedStyle(tile);
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) continue;
+    await drawExportImageElement(ctx, tile, rect, { filter: tileFilter });
+  }
+}
+
+async function drawExportPlacedBasemaps(ctx, projector) {
+  for (const item of placedBasemaps) {
+    if (!item.layer || !map.hasLayer(item.layer)) continue;
+    const bounds = item.layer.getBounds();
+    const nw = projector.point(bounds.getNorthWest());
+    const se = projector.point(bounds.getSouthEast());
+    const width = se.x - nw.x;
+    const height = se.y - nw.y;
+    if (!width || !height) continue;
+    const img = await loadExportImage(item.imageData);
+    if (!img) continue;
+    ctx.save();
+    ctx.filter = `brightness(${normalizePlacedBasemapFilterValue(item.brightness, 1)}) contrast(${normalizePlacedBasemapFilterValue(item.contrast, 1)})`;
+    ctx.drawImage(img, nw.x, nw.y, width, height);
+    ctx.restore();
+  }
+}
+
+async function drawExportMarkerGroup(ctx, groupName, projector) {
+  if (!layerVisible[groupName] || !map.hasLayer(layers[groupName])) return;
+  const markers = layers[groupName].getLayers().filter(layer => layer instanceof L.Marker && !layer._isLabel && !layer._isHelper);
+  markers.sort((a, b) => (a.options?.zIndexOffset || 0) - (b.options?.zIndexOffset || 0));
+  for (const marker of markers) {
+    if (groupName === 'icons') await drawExportFacilityMarker(ctx, marker, projector);
+    else if (groupName === 'texts') await drawExportTextElementMarker(ctx, marker, projector);
+  }
+}
+
+function drawExportShapeLabels(ctx, groupName, projector) {
+  if (!layerVisible[groupName] || !map.hasLayer(layers[groupName])) return;
+  layers[groupName].eachLayer(layer => {
+    if (layer._isLabel) drawExportShapeLabel(ctx, layer, projector);
+  });
+}
+
+async function renderMapToCanvas(rect, exportScale, transparent) {
+  const mapEl = document.getElementById('map');
+  const width = Math.max(1, Math.round(rect.width));
+  const height = Math.max(1, Math.round(rect.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(width * exportScale);
+  canvas.height = Math.round(height * exportScale);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(exportScale, exportScale);
+  if (!transparent) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+  }
+  const projector = createExportProjector(rect, mapEl);
+
+  await drawExportBaseTiles(ctx, rect, transparent);
+  if (!transparent) await drawExportPlacedBasemaps(ctx, projector);
+
+  const bottomToTop = [...layerOrder].reverse();
+  for (const groupName of bottomToTop) {
+    if (!layers[groupName] || LAYER_META[groupName]?.isMarker) continue;
+    if (!layerVisible[groupName] || !map.hasLayer(layers[groupName])) continue;
+    layers[groupName].eachLayer(layer => drawExportVectorLayer(ctx, layer, groupName, projector));
+  }
+  for (const groupName of bottomToTop) {
+    if (!layers[groupName] || LAYER_META[groupName]?.isMarker) continue;
+    drawExportShapeLabels(ctx, groupName, projector);
+  }
+  for (const groupName of bottomToTop) {
+    if (!layers[groupName] || !LAYER_META[groupName]?.isMarker) continue;
+    await drawExportMarkerGroup(ctx, groupName, projector);
+  }
+
+  return canvas;
 }
 
 async function exportMapImage(format) {
-  if (typeof html2canvas === 'undefined') {
-    showStatus('html2canvas 函式庫尚未載入，請檢查網路連線。', true);
-    return;
-  }
   if (format === 'pdf' && (typeof window.jspdf === 'undefined')) {
     showStatus('jsPDF 函式庫尚未載入，請檢查網路連線。', true);
     return;
   }
 
   const transparent = document.getElementById('exportTransparent').checked;
-  const exportScale = Math.max(1, Math.min(4, parseFloat(document.getElementById('exportScale')?.value || '2') || 2));
+  const exportScale = Math.max(1, Math.min(5, parseFloat(document.getElementById('exportScale')?.value || '4') || 4));
   const buttons = document.querySelectorAll('.btn-format');
   const mapEl = document.getElementById('map');
+  if (exportCropDrawing && !exportCropRect) stopExportCropDrawing();
   buttons.forEach(b => b.disabled = true);
-  mapEl.classList.add('exporting-map-image');
   showStatus('正在準備匯出…');
 
-  // 暫時隱藏不應出現在輸出中的 UI 元件
-  const selectorsToHide = [
-    '.leaflet-control-container',
-    '.leaflet-control-zoom',
-    '.leaflet-control-attribution',
-    '.leaflet-control-map-lock',
-    '#historyControls',
-    '.history-row',
-    '.map-undo-controls',
-    '.basemap-toggle',
-    '.placed-basemap-actions',
-    '.placed-basemap-action',
-    '.basemap-adjust',
-    '.object-detail-popup',
-    '.object-detail-panel',
-    '.multi-select-panel',
-    '.status',
-    '.leaflet-pm-toolbar',
-  ];
-  const restoreList = [];
-  selectorsToHide.forEach(sel => {
-    document.querySelectorAll(sel).forEach(el => {
-      restoreList.push({ el, prev: el.style.visibility });
-      el.style.visibility = 'hidden';
-    });
-  });
   const restoreHighlights = temporarilyRemoveExportOnlyHighlights();
-
-  // 透明背景：暫時隱藏底圖磚層
-  const hiddenTilePanes = [];
-  if (transparent) {
-    [...activeBaseLayers, ...placedBasemaps.map(item => item.layer)].filter(Boolean).forEach(l => {
-      const container = getLayerElement(l);
-      if (container) {
-        hiddenTilePanes.push({ el: container, prev: container.style.display });
-        container.style.display = 'none';
-      }
-    });
-  }
-
   map.invalidateSize(false);
 
-  // 等一個 frame 讓 Leaflet 先把目前畫面的底圖位置算定
-  await new Promise(r => requestAnimationFrame(() => setTimeout(r, 80)));
-
-  // html2canvas 對 Leaflet 的底圖 transform 容易判錯，匯出時改用實際畫面座標重建底圖層。
-  let exportRasterSnapshot = null;
-  if (!transparent) {
-    exportRasterSnapshot = await createExportRasterSnapshot(mapEl);
-    if (exportRasterSnapshot) {
-      document.querySelectorAll('.leaflet-tile-pane, .placed-basemap-pane').forEach(el => {
-        hiddenTilePanes.push({ el, prev: el.style.display });
-        el.style.display = 'none';
-      });
-    }
-  }
-
-  // html2canvas 對 Leaflet 原生 SVG/marker pane 偶爾會漏截或裁切。
-  // 匯出時另建一份不帶 Leaflet transform 的「已繪製物件快照」，再隱藏原 pane。
-  let exportDrawnSnapshot = null;
-  const hiddenDrawnPanes = [];
-  try {
-    exportDrawnSnapshot = await createExportDrawnSnapshot(mapEl);
-    if (exportDrawnSnapshot) {
-      mapEl.querySelectorAll('.leaflet-overlay-pane, .leaflet-marker-pane, .leaflet-shadow-pane, .leaflet-tooltip-pane').forEach(el => {
-        hiddenDrawnPanes.push({ el, prev: el.style.visibility });
-        el.style.visibility = 'hidden';
-      });
-    }
-  } catch (err) {
-    console.warn('Export drawn snapshot failed; falling back to live Leaflet panes.', err);
-    removeExportDrawnSnapshot(exportDrawnSnapshot);
-    exportDrawnSnapshot = null;
-  }
-
-  const restoreLeafletTransforms = freezeLeafletTransformsForExport(mapEl);
-
-  // 再等一個 frame 讓臨時輸出層與其餘物件完成重排
   await new Promise(r => requestAnimationFrame(() => setTimeout(r, 80)));
 
   let canvas;
   try {
-    showStatus(`正在擷取地圖…（${exportScale}x，需數秒）`);
-    const rect = getVisibleMapExportRect(mapEl);
-    canvas = await html2canvas(mapEl, {
-      backgroundColor: transparent ? null : '#ffffff',
-      useCORS: true,
-      allowTaint: false,
-      scale: exportScale,
-      x: Math.round(rect.left + window.scrollX),
-      y: Math.round(rect.top + window.scrollY),
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
-      windowWidth: document.documentElement.clientWidth,
-      windowHeight: document.documentElement.clientHeight,
-      scrollX: window.scrollX,
-      scrollY: window.scrollY,
-      logging: false,
-    });
+    const rect = getExportCaptureRect(mapEl);
+    showStatus(`正在重繪目前地圖畫面…（${exportScale}x，需數秒）`);
+    canvas = await renderMapToCanvas(rect, exportScale, transparent);
   } catch (err) {
-    showStatus('擷取失敗：' + err.message + '（部分地圖磚可能未支援 CORS）', true);
-    removeExportDrawnSnapshot(exportDrawnSnapshot);
-    removeExportRasterSnapshot(exportRasterSnapshot);
-    restoreLeafletTransforms();
+    showStatus('匯出失敗：' + err.message + '（部分地圖磚可能未支援 CORS）', true);
     restoreHighlights();
-    restoreList.forEach(r => r.el.style.visibility = r.prev);
-    hiddenDrawnPanes.forEach(r => r.el.style.visibility = r.prev);
-    hiddenTilePanes.forEach(r => r.el.style.display = r.prev);
-    mapEl.classList.remove('exporting-map-image');
     buttons.forEach(b => b.disabled = false);
     return;
   }
 
-  // 還原 UI
-  removeExportDrawnSnapshot(exportDrawnSnapshot);
-  removeExportRasterSnapshot(exportRasterSnapshot);
-  restoreLeafletTransforms();
   restoreHighlights();
-  restoreList.forEach(r => r.el.style.visibility = r.prev);
-  hiddenDrawnPanes.forEach(r => r.el.style.visibility = r.prev);
-  hiddenTilePanes.forEach(r => r.el.style.display = r.prev);
-  mapEl.classList.remove('exporting-map-image');
 
   // 輸出
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
