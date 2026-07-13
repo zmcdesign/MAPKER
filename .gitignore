@@ -1,2 +1,9 @@
 .DS_Store
 mapker-standalone-*.html
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
