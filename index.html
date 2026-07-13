@@ -33,6 +33,120 @@ html, body {
 button { font-family: inherit; }
 input, textarea { font-family: inherit; }
 
+.intro-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 48% 8%, rgba(255, 246, 229, 0.72), transparent 34%),
+    radial-gradient(circle at 96% 78%, rgba(255, 232, 197, 0.54), transparent 20%),
+    linear-gradient(135deg, #fbfcfd 0%, #eef3f9 46%, #dfe8f3 100%);
+  color: #303f49;
+  pointer-events: none;
+  overflow: hidden;
+  animation: splash-fade 2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.intro-splash::before {
+  content: '';
+  position: absolute;
+  inset: -18%;
+  background:
+    linear-gradient(102deg, transparent 8%, rgba(255,255,255,0.62) 28%, transparent 52%),
+    radial-gradient(circle at 22% 14%, rgba(255,255,255,0.82), transparent 22%),
+    radial-gradient(circle at 92% 84%, rgba(255, 230, 190, 0.30), transparent 18%);
+  transform: translateX(-28%) rotate(-8deg);
+  opacity: 0;
+  animation: intro-light-sweep 1.65s 0.12s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.intro-splash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-radial-gradient(circle at 15% 5%, transparent 0 52px, rgba(255,255,255,0.66) 53px 55px, transparent 56px 62px),
+    repeating-radial-gradient(circle at 68% 78%, transparent 0 38px, rgba(255,255,255,0.62) 39px 41px, transparent 42px 49px),
+    radial-gradient(circle at 70% 70%, rgba(255,255,255,0.22) 0 5px, transparent 6px 9px);
+  opacity: 0.78;
+}
+.intro-splash.is-hidden {
+  display: none;
+}
+.intro-mark {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: clamp(38px, 8vw, 92px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  text-shadow:
+    0 1px 0 rgba(255,255,255,0.86),
+    0 14px 34px rgba(115, 139, 154, 0.18),
+    0 18px 52px rgba(160, 175, 188, 0.20);
+}
+.intro-mark span {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(18px) scale(0.94);
+  animation: intro-letter 1.05s cubic-bezier(0.18, 0.9, 0.2, 1.1) forwards;
+}
+.intro-mark span:nth-child(1) { animation-delay: 0.08s; color: #557f75; }
+.intro-mark span:nth-child(2) { animation-delay: 0.16s; }
+.intro-mark span:nth-child(3) { animation-delay: 0.24s; }
+.intro-mark span:nth-child(4) { animation-delay: 0.32s; color: #6fa79a; }
+.intro-mark span:nth-child(5) { animation-delay: 0.40s; }
+.intro-mark span:nth-child(6) { animation-delay: 0.48s; }
+.intro-line {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + clamp(32px, 7vw, 74px));
+  width: min(220px, 48vw);
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(111, 167, 154, 0.74), rgba(255, 224, 184, 0.66), transparent);
+  transform: translateX(-50%) scaleX(0);
+  transform-origin: center;
+  z-index: 1;
+  box-shadow:
+    0 0 16px rgba(255, 229, 194, 0.46),
+    0 0 28px rgba(111, 167, 154, 0.20);
+  animation: intro-line 1.15s 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+@keyframes intro-letter {
+  0% { opacity: 0; transform: translateY(18px) scale(0.94); }
+  70% { opacity: 1; transform: translateY(-2px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes intro-line {
+  0% { opacity: 0; transform: translateX(-50%) scaleX(0); }
+  30% { opacity: 1; }
+  100% { opacity: 0.92; transform: translateX(-50%) scaleX(1); }
+}
+@keyframes intro-light-sweep {
+  0% { opacity: 0; transform: translateX(-35%) rotate(-8deg); }
+  28% { opacity: 0.78; }
+  100% { opacity: 0.34; transform: translateX(18%) rotate(-8deg); }
+}
+@keyframes splash-fade {
+  0%, 68% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro-splash {
+    animation-duration: 0.8s;
+  }
+  .intro-mark span,
+  .intro-line {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 #app {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
@@ -1548,6 +1662,12 @@ main { position: relative; }
 </style>
 </head>
 <body>
+<div class="intro-splash" id="introSplash" aria-hidden="true">
+  <div class="intro-mark" aria-hidden="true">
+    <span>M</span><span>A</span><span>P</span><span>K</span><span>E</span><span>R</span>
+  </div>
+  <div class="intro-line" aria-hidden="true"></div>
+</div>
 <div id="app">
   <aside id="sidebar">
     <div class="brand">
@@ -2559,6 +2679,41 @@ function openPlacedBasemapFile() {
   placedBasemapFileInput.click();
 }
 
+function readImageIntrinsicSize(imageData) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const width = img.naturalWidth || img.width;
+      const height = img.naturalHeight || img.height;
+      resolve(width > 0 && height > 0 ? { width, height } : null);
+    };
+    img.onerror = () => resolve(null);
+    img.src = imageData;
+  });
+}
+
+function getAspectFitPlacedBasemapBounds(imageSize) {
+  const mapSize = map.getSize();
+  const fallbackBounds = map.getBounds();
+  if (!imageSize || !mapSize.x || !mapSize.y) return fallbackBounds;
+  const maxWidth = Math.max(160, mapSize.x * 0.86);
+  const maxHeight = Math.max(160, mapSize.y * 0.86);
+  const imageRatio = imageSize.width / imageSize.height;
+  const frameRatio = maxWidth / maxHeight;
+  let width = maxWidth;
+  let height = maxHeight;
+  if (imageRatio > frameRatio) {
+    height = width / imageRatio;
+  } else {
+    width = height * imageRatio;
+  }
+  const centerPoint = map.latLngToContainerPoint(map.getCenter());
+  const northWest = map.containerPointToLatLng([centerPoint.x - width / 2, centerPoint.y - height / 2]);
+  const southEast = map.containerPointToLatLng([centerPoint.x + width / 2, centerPoint.y + height / 2]);
+  const fitBounds = L.latLngBounds(northWest, southEast);
+  return fitBounds.isValid() ? fitBounds : fallbackBounds;
+}
+
 function handlePlacedBasemapUpload(e) {
   const file = e.target.files[0];
   e.target.value = '';
@@ -2572,10 +2727,12 @@ function handlePlacedBasemapUpload(e) {
     return;
   }
   const reader = new FileReader();
-  reader.onload = () => {
-    const bounds = map.getBounds();
+  reader.onload = async () => {
+    const imageData = reader.result;
+    const imageSize = typeof imageData === 'string' ? await readImageIntrinsicSize(imageData) : null;
+    const bounds = getAspectFitPlacedBasemapBounds(imageSize);
     const data = {
-      imageData: reader.result,
+      imageData,
       bounds: [
         [bounds.getSouth(), bounds.getWest()],
         [bounds.getNorth(), bounds.getEast()],
@@ -2585,7 +2742,7 @@ function handlePlacedBasemapUpload(e) {
     const undoSnapshot = captureMapSnapshot();
     if (restorePlacedBasemap(data)) {
       pushUndoSnapshot(undoSnapshot, '置入背景圖');
-      showStatus(`已置入第 ${placedBasemaps.length} 張背景圖。切回選取模式可縮放、刪除，並共用右上亮度／對比滑桿。`, true);
+      showStatus(`已置入第 ${placedBasemaps.length} 張背景圖，並保留原始比例。切回選取模式可縮放、刪除，並共用右上亮度／對比滑桿。`, true);
     } else {
       showStatus('置入背景圖失敗。', true);
     }
@@ -8135,6 +8292,10 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
 refreshCounts();
 showStatus('歡迎！先在左側搜尋你的學校，再選擇繪製工具開始作圖。', false);
 setTimeout(() => document.getElementById('status').classList.add('hidden'), 8000);
+setTimeout(() => {
+  const intro = document.getElementById('introSplash');
+  if (intro) intro.remove();
+}, 2200);
 </script>
 </body>
 </html>
