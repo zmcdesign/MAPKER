@@ -1,0 +1,10 @@
+{
+  "name": "mapker-interaction-tests",
+  "private": true,
+  "scripts": {
+    "test": "node mouse-selection.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0"
+  }
+}
