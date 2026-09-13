@@ -408,9 +408,6 @@ body.exporting-map-image #sidebar {
   color: var(--text);
   line-height: 1.15;
 }
-.color-scheme-score {
-  display: none;
-}
 .color-scheme-swatches {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1857,7 +1854,6 @@ body.exporting-map-image .object-selection-marquee { display: none !important; }
     <div class="section">
       <h3>6. 配色選項</h3>
       <div class="color-scheme-grid" id="colorSchemeGrid"></div>
-      <p class="hint">三組配色以色盲辨識友善與高對比為原則；套用後仍可在單一物件中手動微調填色與外框。</p>
     </div>
 
     <div class="section">
@@ -2094,43 +2090,40 @@ const DEFAULT_GREEN_STYLE = {
 const COLOR_SCHEMES = [
   {
     id: 'balanced',
-    name: '清晰高對比',
-    note: '中性底色搭配藍綠與橘紅，路線維持黑色虛線。',
-    score: '80%+',
+    name: '柔和自然',
+    note: '米白、薄荷綠、藍色。',
     styles: {
-      campus: { fill: '#f1ecdf', stroke: '#6b6658', strokeWidth: 2, fillOpacity: 0.5, dashStyle: 'short', dashArray: '4,3' },
+      campus: { fill: '#FCF8EF', stroke: '#2c2c2a', strokeWidth: 2, fillOpacity: 0.5, dashStyle: 'short', dashArray: '4,3' },
       campusRoad: { stroke: '#6b6658', strokeWidth: 1.2, opacity: 0.76, dashStyle: 'solid', dashArray: '' },
-      building: { fill: '#d9d7cf', stroke: '#2f302c', strokeWidth: 1.5, fillOpacity: 0.6, dashStyle: 'solid', dashArray: null },
-      green: { fill: '#c6e6d6', stroke: '#006d77', strokeWidth: 1.5, fillOpacity: 0.56, dashStyle: 'solid', dashArray: null },
-      pitch: { fill: '#f2a07b', stroke: '#a33f24', strokeWidth: 1.5, fillOpacity: 0.54, dashStyle: 'short', dashArray: '6,3' },
+      building: { fill: '#FCF8EF', stroke: '#2c2c2a', strokeWidth: 1.5, fillOpacity: 0.6, dashStyle: 'solid', dashArray: null },
+      green: { fill: '#78C6A3', stroke: '#2c2c2a', strokeWidth: 1.5, fillOpacity: 0.56, dashStyle: 'solid', dashArray: null },
+      pitch: { fill: '#2782B8', stroke: '#2c2c2a', strokeWidth: 1.5, fillOpacity: 0.54, dashStyle: 'short', dashArray: '6,3' },
       route: { fill: '#111111', stroke: '#111111', strokeWidth: 4.5, opacity: 0.92, dashStyle: DEFAULT_ROUTE_DASH_STYLE, dashArray: DEFAULT_ROUTE_DASH_ARRAY },
     },
   },
   {
     id: 'blueOrange',
-    name: '藍橘辨識',
-    note: '以藍色、橘色、深灰分離主要圖層，適合紅綠辨識差異較低者。',
-    score: '85%+',
+    name: '對比鮮明',
+    note: '淺灰、橘色、淺藍。',
     styles: {
-      campus: { fill: '#edf2f4', stroke: '#495057', strokeWidth: 2, fillOpacity: 0.5, dashStyle: 'short', dashArray: '4,3' },
+      campus: { fill: '#EEEEEE', stroke: '#2c2c2a', strokeWidth: 2, fillOpacity: 0.5, dashStyle: 'short', dashArray: '4,3' },
       campusRoad: { stroke: '#495057', strokeWidth: 1.2, opacity: 0.78, dashStyle: 'solid', dashArray: '' },
-      building: { fill: '#b9d7ea', stroke: '#1d4e89', strokeWidth: 1.5, fillOpacity: 0.58, dashStyle: 'solid', dashArray: null },
-      green: { fill: '#d8f3dc', stroke: '#006b5b', strokeWidth: 1.5, fillOpacity: 0.56, dashStyle: 'solid', dashArray: null },
-      pitch: { fill: '#ffd166', stroke: '#9c4a00', strokeWidth: 1.5, fillOpacity: 0.58, dashStyle: 'short', dashArray: '6,3' },
+      building: { fill: '#EEEEEE', stroke: '#2c2c2a', strokeWidth: 1.5, fillOpacity: 0.58, dashStyle: 'solid', dashArray: null },
+      green: { fill: '#EE8866', stroke: '#2c2c2a', strokeWidth: 1.5, fillOpacity: 0.56, dashStyle: 'solid', dashArray: null },
+      pitch: { fill: '#77AADD', stroke: '#2c2c2a', strokeWidth: 1.5, fillOpacity: 0.58, dashStyle: 'short', dashArray: '6,3' },
       route: { fill: '#111111', stroke: '#111111', strokeWidth: 4.5, opacity: 0.92, dashStyle: DEFAULT_ROUTE_DASH_STYLE, dashArray: DEFAULT_ROUTE_DASH_ARRAY },
     },
   },
   {
     id: 'print',
-    name: '淡彩列印',
-    note: '低彩度但提高外框對比，投影、列印與黑白列印都較穩。',
-    score: '90%+',
+    name: '低彩沉穩',
+    note: '灰白、灰綠、藍灰。',
     styles: {
-      campus: { fill: '#f6f1e8', stroke: '#5d5a52', strokeWidth: 2, fillOpacity: 0.5, dashStyle: 'short', dashArray: '4,3' },
+      campus: { fill: '#F5F7F8', stroke: '#2c2c2a', strokeWidth: 2, fillOpacity: 0.5, dashStyle: 'short', dashArray: '4,3' },
       campusRoad: { stroke: '#5d5a52', strokeWidth: 1.2, opacity: 0.8, dashStyle: 'solid', dashArray: '' },
-      building: { fill: '#d6d6d0', stroke: '#1f1f1f', strokeWidth: 1.6, fillOpacity: 0.6, dashStyle: 'solid', dashArray: null },
-      green: { fill: '#d9e8d1', stroke: '#3d6f50', strokeWidth: 1.6, fillOpacity: 0.56, dashStyle: 'solid', dashArray: null },
-      pitch: { fill: '#d8b08c', stroke: '#7a3f22', strokeWidth: 1.6, fillOpacity: 0.56, dashStyle: 'short', dashArray: '6,3' },
+      building: { fill: '#F5F7F8', stroke: '#2c2c2a', strokeWidth: 1.6, fillOpacity: 0.6, dashStyle: 'solid', dashArray: null },
+      green: { fill: '#A5BDAB', stroke: '#2c2c2a', strokeWidth: 1.6, fillOpacity: 0.56, dashStyle: 'solid', dashArray: null },
+      pitch: { fill: '#79909E', stroke: '#2c2c2a', strokeWidth: 1.6, fillOpacity: 0.56, dashStyle: 'short', dashArray: '6,3' },
       route: { fill: '#000000', stroke: '#000000', strokeWidth: 4.8, opacity: 0.94, dashStyle: DEFAULT_ROUTE_DASH_STYLE, dashArray: DEFAULT_ROUTE_DASH_ARRAY },
     },
   },
@@ -3234,10 +3227,9 @@ function renderColorSchemeGrid() {
       const style = getColorSchemeStyle(kind, scheme);
       return `<span class="color-scheme-swatch" style="--scheme-fill:${style.fill || '#ddd'}"></span>`;
     }).join('');
-    return `<button type="button" class="color-scheme-btn${scheme.id === activeColorSchemeId ? ' active' : ''}" data-color-scheme="${scheme.id}" title="${escapeHtml(`${scheme.name}：${scheme.note} 對比 ${scheme.score}`)}">
+    return `<button type="button" class="color-scheme-btn${scheme.id === activeColorSchemeId ? ' active' : ''}" data-color-scheme="${scheme.id}" aria-pressed="${scheme.id === activeColorSchemeId}" title="${escapeHtml(`${scheme.name}：${scheme.note}`)}">
       <span class="color-scheme-head">
         <span class="color-scheme-title">${escapeHtml(scheme.name)}</span>
-        <span class="color-scheme-score">對比 ${escapeHtml(scheme.score)}</span>
       </span>
       <span class="color-scheme-swatches" aria-hidden="true">${swatches}</span>
       <span class="color-scheme-note">${escapeHtml(scheme.note)}</span>

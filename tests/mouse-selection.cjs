@@ -7,6 +7,7 @@ const testSidebarLayout = require('./sidebar-layout.cjs');
 const testZoomPrecision = require('./zoom-precision.cjs');
 const testSharedInspector = require('./shared-inspector.cjs');
 const testBasemapLoading = require('./basemap-loading.cjs');
+const testColorSchemes = require('./color-schemes.cjs');
 
 async function main() {
   const errors = [];
@@ -185,6 +186,7 @@ async function main() {
     testSidebarLayout(w);
     await testZoomPrecision(w);
     testBasemapLoading(dom);
+    await testColorSchemes(w);
     assert.deepEqual(errors, [], 'No runtime errors during interaction tests');
     console.log('PASS: marquee containment, visible layers, markers, Shift-add, Escape, clicks, jitter, touch, tool isolation, middle/space pan, map lock, direct move, undo/redo.');
   } finally {
